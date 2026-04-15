@@ -86,25 +86,31 @@ public class GeminiClient {
         JsonNode firstCandidate = candidates.get(0);
         String finishReason = firstCandidate.path("finishReason").asText("STOP");
 
+        // Collect text regardless of finish reason so we can try to salvage partial JSON
+        JsonNode parts = firstCandidate.path("content").path("parts");
+        StringBuilder sb = new StringBuilder();
+        if (parts.isArray()) {
+            for (JsonNode part : parts) {
+                if (part.has("text")) sb.append(part.path("text").asText());
+            }
+        }
+        String text = sb.toString().trim();
+
         if ("MAX_TOKENS".equals(finishReason)) {
-            throw new AnalysisException("Response was too long and got cut off. Please try again.", 500);
+            log.warn("Gemini hit MAX_TOKENS ({} chars collected). Attempting to salvage partial JSON...", text.length());
+            if (!text.isBlank()) {
+                try { return sanitiseJson(text); }
+                catch (Exception ignored) { /* fall through to hard error */ }
+            }
+            throw new AnalysisException(
+                    "Response was too long and was cut off. Try a shorter horizon (e.g. '1 year') or try again.", 500);
         }
         if ("SAFETY".equals(finishReason)) {
             throw new AnalysisException("Gemini blocked the response for safety reasons.", 400);
         }
-
-        JsonNode parts = firstCandidate.path("content").path("parts");
-        if (!parts.isArray() || parts.isEmpty()) {
+        if (text.isBlank()) {
             throw new AnalysisException("Gemini returned empty content in response.");
         }
-
-        StringBuilder sb = new StringBuilder();
-        for (JsonNode part : parts) {
-            if (part.has("text")) {
-                sb.append(part.path("text").asText());
-            }
-        }
-        String text = sb.toString().trim();
 
         // Log token usage
         JsonNode usage = response.path("usageMetadata");
