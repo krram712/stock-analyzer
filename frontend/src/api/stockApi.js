@@ -1,11 +1,11 @@
 /**
  * Stock Analyser API Service
- * All calls go through the Spring Boot backend, which proxies to Anthropic.
+ * All calls go through the Spring Boot backend, which proxies to Gemini.
  */
 
 const BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
 
-const DEFAULT_TIMEOUT_MS = 130_000; // 130 s (backend has 120 s Anthropic timeout)
+const DEFAULT_TIMEOUT_MS = 180_000; // 180s — matches backend Gemini timeout
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -30,9 +30,6 @@ async function fetchWithTimeout(url, options = {}) {
 
 /**
  * Analyse a stock ticker with the given investment horizon.
- * @param {string} ticker   e.g. "NVDA"
- * @param {string} horizon  e.g. "5 years"
- * @returns {Promise<Object>} The full analysis data object
  */
 export async function analyseStock(ticker, horizon) {
   const url = `${BASE_URL}/api/v1/analyze`;
@@ -45,26 +42,37 @@ export async function analyseStock(ticker, horizon) {
       body: JSON.stringify({ ticker: ticker.trim().toUpperCase(), horizon }),
     });
   } catch (err) {
-    throw new Error(err.message || 'Network error — check your connection and try again.');
+    if (err.message.includes('timed out')) throw err;
+    throw new Error('Cannot reach the backend server. Check your connection and try again.');
+  }
+
+  // Detect HTML response (backend not configured / wrong URL)
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('text/html')) {
+    if (!BASE_URL) {
+      throw new Error(
+        'Backend URL not configured. Set REACT_APP_API_BASE_URL in Vercel environment variables to your Railway backend URL.'
+      );
+    }
+    throw new Error(`Backend returned HTML instead of JSON (status ${res.status}). Check the backend URL configuration.`);
   }
 
   let json;
   try {
     json = await res.json();
   } catch {
-    throw new Error('Server returned an unexpected response. Please try again.');
+    throw new Error(`Server returned an unexpected response (status ${res.status}). Please try again.`);
   }
 
   if (!res.ok || !json.success) {
     throw new Error(json.message || `Server error ${res.status}. Please try again.`);
   }
 
-  return json.data; // the parsed stock analysis object
+  return json.data;
 }
 
 /**
  * Fetch the curated list of popular tickers for the search UI.
- * @returns {Promise<string[]>}
  */
 export async function fetchPopularTickers() {
   try {
@@ -76,3 +84,5 @@ export async function fetchPopularTickers() {
     return ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'JPM'];
   }
 }
+
+
