@@ -3,6 +3,11 @@
   "outputDirectory": "frontend/build",
   "installCommand": "cd frontend && npm install",
   "framework": null,
+  "build": {
+    "env": {
+      "REACT_APP_API_BASE_URL": ""
+    }
+  },
   "rewrites": [
     {
       "source": "/api/:path*",
