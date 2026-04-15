@@ -1,5 +1,5 @@
 # US Stock Fundamental Analyser
-### React Mobile App + Spring Boot Backend + Anthropic Claude AI
+### React Mobile App + Spring Boot Backend + Google Gemini AI (Free Tier)
 
 ---
 
@@ -11,15 +11,15 @@ Browser (React PWA)
         ▼
   nginx (Docker)  ──proxy /api/──►  Spring Boot (port 8080)
                                             │
-                                   Anthropic Claude API
-                                   (claude-opus-4-6 + web_search)
+                                   Google Gemini API
+                                   (gemini-1.5-flash + Google Search grounding)
 ```
 
 | Layer | Tech | Notes |
 |-------|------|-------|
 | Frontend | React 18 · mobile-first CSS | 8-tab dashboard, no UI library |
-| Backend | Spring Boot 3.2 · Java 21 | REST API, rate limiting, 1-hr cache |
-| AI | Anthropic `claude-opus-4-6` | Web search tool enabled |
+| Backend | Spring Boot 3.3 · Java 17 | REST API, rate limiting, 1-hr cache |
+| AI | Google `gemini-1.5-flash` | Google Search grounding enabled |
 | Infra | Docker Compose · nginx | Single `docker compose up` deploy |
 
 ---
@@ -28,7 +28,7 @@ Browser (React PWA)
 
 ### Prerequisites
 - Docker Desktop installed
-- An Anthropic API key → [console.anthropic.com](https://console.anthropic.com)
+- A free Gemini API key → [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
 
 ### Steps
 
@@ -38,7 +38,7 @@ cd stock-analyzer
 
 # 2. Create your .env file
 cp .env.example .env
-# Edit .env and set:  ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+# Edit .env and set:  GEMINI_API_KEY=AIza...
 
 # 3. Build and start everything
 docker compose up --build
@@ -55,10 +55,13 @@ docker compose up --build
 ```bash
 cd backend
 
-# Set env var
-export ANTHROPIC_API_KEY=sk-ant-xxxxxxxx
+# Set env var (Windows PowerShell)
+$env:GEMINI_API_KEY="AIza..."
 
-# Run
+# Run pre-built JAR
+java -jar target/stock-analyzer-backend-1.0.0.jar
+
+# OR build and run via Maven
 ./mvnw spring-boot:run
 # → listening on http://localhost:8080
 ```
@@ -71,14 +74,9 @@ cd frontend
 # Install deps
 npm install
 
-# Create local env
-cp .env.example .env.local
-# Set REACT_APP_API_BASE_URL=http://localhost:8080
-# (or leave blank – package.json proxy handles it)
-
 # Start
 npm start
-# → http://localhost:3000
+# → http://localhost:3000  (proxies /api/* to backend automatically)
 ```
 
 ---
@@ -119,7 +117,8 @@ Returns a curated list of popular tickers for the search UI.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | ✅ | — | Your Anthropic API key |
+| `GEMINI_API_KEY` | ✅ | — | Free Gemini API key from [aistudio.google.com](https://aistudio.google.com/apikey) |
+| `GEMINI_MODEL` | ❌ | `gemini-1.5-flash` | Gemini model to use |
 | `ALLOWED_ORIGINS` | ❌ | `http://localhost:3000` | CORS allowed origins |
 | `SPRING_PROFILES_ACTIVE` | ❌ | default | Set to `prod` in production |
 
@@ -127,7 +126,7 @@ Returns a curated list of popular tickers for the search UI.
 
 ## Production Deployment Notes
 
-1. **API Key Security** — The `ANTHROPIC_API_KEY` is stored only in the Spring Boot backend. The React frontend never touches the key.
+1. **API Key Security** — The `GEMINI_API_KEY` is stored only in the Spring Boot backend. The React frontend never touches the key.
 
 2. **HTTPS** — In production, put a TLS-terminating load balancer (AWS ALB, Cloudflare, Caddy) in front of nginx.
 
@@ -139,7 +138,40 @@ Returns a curated list of popular tickers for the search UI.
 
 4. **Rate Limiting** — Currently 10 rpm per IP (in-memory). For production scale, use [bucket4j](https://github.com/bucket4j/bucket4j) with Redis.
 
-5. **Model** — Uses `claude-opus-4-6` by default. Change `anthropic.model` in `application.properties` for faster/cheaper analysis (`claude-sonnet-4-6`).
+5. **Model** — Uses `gemini-1.5-flash` by default (free tier: 15 RPM / 1,500 RPD). For higher quality, set `GEMINI_MODEL=gemini-1.5-pro` (paid tier).
+
+---
+
+## Gemini Free Tier Limits
+
+| Model | Requests/Min | Requests/Day | Cost |
+|-------|-------------|-------------|------|
+| `gemini-1.5-flash` | 15 | 1,500 | **Free** |
+| `gemini-1.5-pro` | 2 | 50 | Free (low limits) |
+
+Get your key at **https://aistudio.google.com/apikey** — no credit card required.
+
+---
+
+## Changelog
+
+### v1.1.0 — April 15, 2026
+- **Switched AI provider from Anthropic Claude → Google Gemini** (free tier)
+- Added `GeminiClient.java` with Google Search grounding support (replaces Claude web-search tool)
+- Renamed `anthropicWebClient` bean → `geminiWebClient` in `WebClientConfig`
+- Replaced all `anthropic.*` properties with `gemini.*` in `application.properties`
+- Updated `StockAnalysisService` to inject `GeminiClient`
+- Upgraded Spring Boot `3.2.5` → `3.3.6`
+- Downgraded Java target `21` → `17` to match local Maven JDK (JDK 17)
+- Updated `.env` template: `ANTHROPIC_API_KEY` → `GEMINI_API_KEY`
+
+### v1.0.0 — April 15, 2026
+- Initial release
+- React 18 mobile-first frontend with 8-tab dashboard
+- Spring Boot 3.2 backend with Anthropic Claude (claude-haiku-4-5) + web-search tool
+- Docker Compose single-command deployment (nginx + Spring Boot)
+- In-memory cache (1 hr TTL), per-IP rate limiting (10 rpm)
+- Pushed to GitHub: [github.com/krram712/stock-analyzer](https://github.com/krram712/stock-analyzer)
 
 ---
 
