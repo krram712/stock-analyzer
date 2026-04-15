@@ -17,12 +17,12 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class WebClientConfig {
 
-    @Value("${anthropic.timeout-seconds:120}")
+    @Value("${gemini.timeout-seconds:120}")
     private int timeoutSeconds;
 
     @Bean
-    public WebClient anthropicWebClient() {
-        // Allow large responses (Anthropic analysis can be verbose)
+    public WebClient geminiWebClient() {
+        // Allow large responses (Gemini analysis can be verbose)
         ExchangeStrategies strategies = ExchangeStrategies.builder()
                 .codecs(configurer -> configurer.defaultCodecs()
                         .maxInMemorySize(10 * 1024 * 1024)) // 10 MB
