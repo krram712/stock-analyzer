@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
-import { analyseStock } from '../api/stockApi';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { analyseStock, warmUpBackend } from '../api/stockApi';
 
 const AppContext = createContext(null);
 
@@ -11,12 +11,15 @@ export function AppProvider({ children }) {
   const [lastQuery, setLastQuery] = useState(null);
 
   const LOADING_STAGES = [
-    'Verifying listing on NYSE / NASDAQ…',
+    'Waking up backend service…',
     'Fetching live financial data & filings…',
     'Running sector-specific analysis…',
     'Comparing peers & ownership signals…',
     'Generating investment view…',
   ];
+
+  // Warm up the Railway backend as soon as the app loads so the JVM is ready
+  useEffect(() => { warmUpBackend(); }, []);
 
   const startAnalysis = useCallback(async (ticker, horizon) => {
     setScreen('loading');

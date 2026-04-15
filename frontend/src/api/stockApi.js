@@ -10,8 +10,12 @@
 const BASE_URL = '';
 
 const DEFAULT_TIMEOUT_MS = 180_000; // 180s — matches backend Gemini timeout
+const COLD_START_WAIT_MS  = 12_000; // wait 12s for Railway JVM cold-start
+const MAX_502_RETRIES     = 2;
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithTimeout(url, options = {}) {
   const controller = new AbortController();
@@ -33,9 +37,22 @@ async function fetchWithTimeout(url, options = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Analyse a stock ticker with the given investment horizon.
+ * Fire-and-forget health ping to wake up the Railway backend on page load.
+ * Prevents the first real request from hitting a cold-start 502.
  */
-export async function analyseStock(ticker, horizon) {
+export async function warmUpBackend() {
+  try {
+    await fetch(`${BASE_URL}/api/v1/health`);
+  } catch {
+    // Intentionally silent — just waking up the JVM
+  }
+}
+
+/**
+ * Analyse a stock ticker with the given investment horizon.
+ * Automatically retries up to MAX_502_RETRIES times on 502 (Railway cold start).
+ */
+export async function analyseStock(ticker, horizon, _retry = 0) {
   const url = `${BASE_URL}/api/v1/analyze`;
 
   let res;
@@ -50,14 +67,15 @@ export async function analyseStock(ticker, horizon) {
     throw new Error('Cannot reach the backend server. Check your connection and try again.');
   }
 
-  // Detect HTML response (backend not configured / wrong URL)
+  // 502 = Railway backend is cold-starting — wait and retry automatically
+  if (res.status === 502 && _retry < MAX_502_RETRIES) {
+    await sleep(COLD_START_WAIT_MS);
+    return analyseStock(ticker, horizon, _retry + 1);
+  }
+
+  // Detect HTML response (wrong URL / misconfiguration)
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('text/html')) {
-    if (!BASE_URL) {
-      throw new Error(
-        'Backend URL not configured. Set REACT_APP_API_BASE_URL in Vercel environment variables to your Railway backend URL.'
-      );
-    }
     throw new Error(`Backend returned HTML instead of JSON (status ${res.status}). Check the backend URL configuration.`);
   }
 
@@ -88,5 +106,3 @@ export async function fetchPopularTickers() {
     return ['AAPL', 'MSFT', 'NVDA', 'GOOGL', 'AMZN', 'META', 'TSLA', 'JPM'];
   }
 }
-
-
