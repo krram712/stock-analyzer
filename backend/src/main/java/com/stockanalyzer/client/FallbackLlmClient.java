@@ -9,13 +9,14 @@ import java.util.List;
 
 /**
  * Tries each configured LLM provider in order.
- * On rate-limit (429) or unavailable (503) it moves to the next provider.
- * Any other error (400, 401, 500) is re-thrown immediately.
+ * Falls through to the next provider on any error.
  *
  * Provider order (configured in LlmProviderConfig):
- *   1. Gemini 1.5 Flash   — Google Search grounding, 15 RPM free
- *   2. Perplexity Sonar   — built-in web search, free tier
- *   3. Groq Llama 3.3 70b — no web search but very fast; knowledge cutoff
+ *   1. Gemini 2.0 Flash      — Google Search grounding, 15 RPM free
+ *   2. Gemini 2.0 Flash Lite — Google Search grounding, 30 RPM free (separate quota)
+ *   3. Groq Llama 3.3 70b    — fast, 30 RPM free, no live web data
+ *   4. OpenRouter             — free model pool, no live web data
+ *   5. Cerebras               — ultra-fast free tier, no live web data
  */
 @Slf4j
 @Component
@@ -30,11 +31,13 @@ public class FallbackLlmClient {
     }
 
     public String complete(String systemPrompt, String userMessage) {
-        List<String> errors = new ArrayList<>();
+        List<String> failed  = new ArrayList<>();
+        List<String> skipped = new ArrayList<>();
 
         for (LlmClient provider : providers) {
             if (!provider.isAvailable()) {
-                log.debug("Skipping {} — not configured (no API key)", provider.getProviderName());
+                log.info("Skipping {} — no API key configured in Railway", provider.getProviderName());
+                skipped.add(provider.getProviderName());
                 continue;
             }
             try {
@@ -45,17 +48,28 @@ public class FallbackLlmClient {
             } catch (AnalysisException ex) {
                 String detail = provider.getProviderName() + " → " + ex.getMessage() + " (status=" + ex.getStatusCode() + ")";
                 log.warn("Provider failed: {}", detail);
-                errors.add(detail);
-                // Always try next provider — don't stop on any single failure
+                failed.add(detail);
+                // Always try next provider
             }
         }
 
-        String errorSummary = errors.isEmpty()
-                ? "No AI providers are configured. Set GEMINI_API_KEY in Railway."
-                : "All providers failed:\n" + String.join("\n", errors);
+        // Build a clear error message showing both failed and skipped providers
+        StringBuilder msg = new StringBuilder();
+        if (!failed.isEmpty()) {
+            msg.append("All providers failed:\n").append(String.join("\n", failed));
+        }
+        if (!skipped.isEmpty()) {
+            if (msg.length() > 0) msg.append("\n\n");
+            msg.append("Skipped (no API key set in Railway):\n")
+               .append(String.join(", ", skipped))
+               .append("\n→ Add GROQ_API_KEY / OPENROUTER_API_KEY / CEREBRAS_API_KEY in Railway → Variables");
+        }
+        if (msg.length() == 0) {
+            msg.append("No AI providers configured. Set GEMINI_API_KEY in Railway.");
+        }
 
-        log.error("All LLM providers exhausted. Details:\n{}", errorSummary);
+        String errorSummary = msg.toString();
+        log.error("All LLM providers exhausted:\n{}", errorSummary);
         throw new AnalysisException(errorSummary, 503);
     }
 }
-

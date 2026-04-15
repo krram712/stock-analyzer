@@ -5,63 +5,60 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.stockanalyzer.exception.AnalysisException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
-import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
 
 /**
  * Low-level client for the Google Gemini API (generateContent).
  *
+ * NOT a Spring @Component — instantiated directly in LlmProviderConfig so that
+ * multiple instances can be created with different models (each has its own quota).
+ *
  * Uses Google Search grounding so Gemini fetches live financial data
- * before generating the analysis — equivalent to Claude's web-search tool,
- * but free on the Gemini 1.5 Flash free tier.
+ * before generating the analysis.
  */
 @Slf4j
-@Component
-@RequiredArgsConstructor
 public class GeminiClient implements LlmClient {
 
     private final WebClient geminiWebClient;
     private final ObjectMapper objectMapper;
-
-    /**
-     * HARDCODED — do NOT change to @Value("${gemini.model}").
-     * Spring Boot's relaxed binding maps env var GEMINI_MODEL → gemini.model,
-     * so a Railway env var would silently override the properties file.
-     * gemini-2.0-flash: stable (non-preview), 15 RPM / 1500 RPD free tier, supports Google Search grounding.
-     */
-    private static final String HARDCODED_MODEL = "gemini-2.0-flash";
-
-    @Value("${gemini.api.key:}")
-    private String apiKey;
-
-    @Value("${gemini.api.url}")
-    private String apiUrl;
-
-
-    @Value("${gemini.max-tokens:8192}")
-    private int maxTokens;
-
-    @Value("${gemini.max-retries:2}")
-    private int maxRetries;
+    private final String apiKey;
+    private final String apiUrl;
+    private final String model;
+    private final int maxTokens;
+    private final int maxRetries;
 
     private long totalInputTokens  = 0;
     private long totalOutputTokens = 0;
 
-    @Override public String getProviderName() { return "Gemini(" + HARDCODED_MODEL + ")"; }
+    public GeminiClient(WebClient geminiWebClient,
+                        ObjectMapper objectMapper,
+                        String apiKey,
+                        String apiUrl,
+                        String model,
+                        int maxTokens,
+                        int maxRetries) {
+        this.geminiWebClient = geminiWebClient;
+        this.objectMapper    = objectMapper;
+        this.apiKey          = apiKey;
+        this.apiUrl          = apiUrl;
+        this.model           = model;
+        this.maxTokens       = maxTokens;
+        this.maxRetries      = maxRetries;
+    }
+
+    @Override public String getProviderName() { return "Gemini(" + model + ")"; }
     @Override public boolean isAvailable()    { return apiKey != null && !apiKey.isBlank(); }
 
     @Override
     public String complete(String systemPrompt, String userMessage) {
-        String url = apiUrl.replace("{model}", HARDCODED_MODEL);
+        String url = apiUrl.replace("{model}", model);
         ObjectNode body = buildRequest(systemPrompt, userMessage);
 
-        log.debug("Calling Gemini API (model={})...", HARDCODED_MODEL);
+        log.debug("Calling Gemini API (model={})...", model);
         String rawResponse = callWithRetry(body, url);
 
         JsonNode response;
@@ -124,7 +121,7 @@ public class GeminiClient implements LlmClient {
         totalInputTokens  += inTok;
         totalOutputTokens += outTok;
         log.info("━━━ Gemini usage ━━━ input={} | output={} | session total={} tokens (model={})",
-                inTok, outTok, totalInputTokens + totalOutputTokens, HARDCODED_MODEL);
+                inTok, outTok, totalInputTokens + totalOutputTokens, model);
 
         return sanitiseJson(text);
     }
@@ -326,4 +323,3 @@ public class GeminiClient implements LlmClient {
         return sb.toString();
     }
 }
-
