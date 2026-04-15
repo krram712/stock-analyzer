@@ -16,7 +16,7 @@ const BASE_URL = /^https?:\/\//i.test(_env)
   ? _env
   : 'https://stock-analyzer-production-736a.up.railway.app';
 
-const DEFAULT_TIMEOUT_MS = 180_000; // 180s — matches backend Gemini timeout
+const DEFAULT_TIMEOUT_MS = 300_000; // 300s (5 min) — Gemini with search grounding can be slow
 const COLD_START_WAIT_MS  = 12_000; // wait 12s for Railway JVM cold-start
 const MAX_502_RETRIES     = 2;
 

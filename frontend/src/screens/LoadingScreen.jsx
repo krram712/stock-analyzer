@@ -41,8 +41,8 @@ export default function LoadingScreen() {
         </div>
 
         <p className="loading-note">
-          Claude is searching live financial data &amp; SEC filings.<br/>
-          This typically takes 30–90 seconds.
+          Gemini is searching live financial data &amp; SEC filings.<br/>
+          This typically takes 60–120 seconds.
         </p>
       </div>
     </div>
