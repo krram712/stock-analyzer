@@ -24,12 +24,12 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class GeminiClient {
+public class GeminiClient implements LlmClient {
 
     private final WebClient geminiWebClient;
     private final ObjectMapper objectMapper;
 
-    @Value("${gemini.api.key}")
+    @Value("${gemini.api.key:}")
     private String apiKey;
 
     @Value("${gemini.api.url}")
@@ -47,14 +47,10 @@ public class GeminiClient {
     private long totalInputTokens  = 0;
     private long totalOutputTokens = 0;
 
-    /**
-     * Calls Gemini with Google Search grounding enabled.
-     * Single-shot: Gemini handles the search internally and returns the final answer.
-     *
-     * @param systemPrompt  The system instruction
-     * @param userMessage   The user request (ticker + horizon)
-     * @return              Raw JSON string produced by Gemini
-     */
+    @Override public String getProviderName() { return "Gemini(" + model + ")"; }
+    @Override public boolean isAvailable()    { return apiKey != null && !apiKey.isBlank(); }
+
+    @Override
     public String complete(String systemPrompt, String userMessage) {
         String url = apiUrl.replace("{model}", model);
         ObjectNode body = buildRequest(systemPrompt, userMessage);

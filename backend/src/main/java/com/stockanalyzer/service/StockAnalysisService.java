@@ -2,7 +2,7 @@ package com.stockanalyzer.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.stockanalyzer.client.GeminiClient;
+import com.stockanalyzer.client.FallbackLlmClient;
 import com.stockanalyzer.dto.AnalysisResponse;
 import com.stockanalyzer.exception.AnalysisException;
 import jakarta.annotation.PostConstruct;
@@ -25,7 +25,7 @@ public class
 
 StockAnalysisService {
 
-    private final GeminiClient geminiClient;
+    private final FallbackLlmClient llmClient;
     private final ObjectMapper objectMapper;
 
     private String systemPrompt;
@@ -65,7 +65,7 @@ StockAnalysisService {
                 upperTicker, horizon
         );
 
-        String rawJson = geminiClient.complete(resolvedPrompt, userMessage);
+        String rawJson = llmClient.complete(resolvedPrompt, userMessage);
 
         // Validate the response contains expected fields
         validateAnalysisJson(rawJson, upperTicker);
