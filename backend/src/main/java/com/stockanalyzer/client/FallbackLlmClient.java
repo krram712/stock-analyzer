@@ -4,6 +4,7 @@ import com.stockanalyzer.exception.AnalysisException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -29,7 +30,7 @@ public class FallbackLlmClient {
     }
 
     public String complete(String systemPrompt, String userMessage) {
-        AnalysisException lastError = null;
+        List<String> errors = new ArrayList<>();
 
         for (LlmClient provider : providers) {
             if (!provider.isAvailable()) {
@@ -42,23 +43,19 @@ public class FallbackLlmClient {
                 log.info("Analysis succeeded via {}", provider.getProviderName());
                 return result;
             } catch (AnalysisException ex) {
-                int code = ex.getStatusCode();
-                if (code == 429 || code == 503) {
-                    log.warn("Provider {} unavailable ({}): {}. Trying next provider...",
-                            provider.getProviderName(), code, ex.getMessage());
-                    lastError = ex;
-                } else {
-                    // Hard error (auth, bad request, etc.) — don't try next provider
-                    throw ex;
-                }
+                String detail = provider.getProviderName() + " → " + ex.getMessage() + " (status=" + ex.getStatusCode() + ")";
+                log.warn("Provider failed: {}", detail);
+                errors.add(detail);
+                // Always try next provider — don't stop on any single failure
             }
         }
 
-        throw new AnalysisException(
-                lastError != null
-                        ? "All AI providers are rate-limited or unavailable. Please wait 60s and try again."
-                        : "No AI providers are configured. Set at least GEMINI_API_KEY in Railway environment variables.",
-                429);
+        String errorSummary = errors.isEmpty()
+                ? "No AI providers are configured. Set GEMINI_API_KEY in Railway."
+                : "All providers failed:\n" + String.join("\n", errors);
+
+        log.error("All LLM providers exhausted. Details:\n{}", errorSummary);
+        throw new AnalysisException(errorSummary, 503);
     }
 }
 
