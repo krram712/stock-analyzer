@@ -7,7 +7,14 @@
  * In local dev: CRA's "proxy" in package.json forwards to http://localhost:8080
  */
 
-const BASE_URL = '';
+// Call Railway directly from the browser — bypasses Vercel's ~30s proxy timeout.
+// CORS on the Railway backend already allows https://*.vercel.app.
+// vercel.json build.env sets REACT_APP_API_BASE_URL to the full https:// URL;
+// if that env var is missing or wrong (no protocol), we fall back to the hardcoded URL.
+const _env = (process.env.REACT_APP_API_BASE_URL || '').trim().replace(/\/$/, '');
+const BASE_URL = /^https?:\/\//i.test(_env)
+  ? _env
+  : 'https://stock-analyzer-production-736a.up.railway.app';
 
 const DEFAULT_TIMEOUT_MS = 180_000; // 180s — matches backend Gemini timeout
 const COLD_START_WAIT_MS  = 12_000; // wait 12s for Railway JVM cold-start
