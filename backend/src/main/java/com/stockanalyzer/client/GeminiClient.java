@@ -33,9 +33,9 @@ public class GeminiClient implements LlmClient {
      * HARDCODED — do NOT change to @Value("${gemini.model}").
      * Spring Boot's relaxed binding maps env var GEMINI_MODEL → gemini.model,
      * so a Railway env var would silently override the properties file.
-     * gemini-1.5-flash-latest: 15 RPM / 1500 RPD free, supports Google Search grounding.
+     * gemini-2.0-flash: stable (non-preview), 15 RPM / 1500 RPD free tier, supports Google Search grounding.
      */
-    private static final String HARDCODED_MODEL = "gemini-1.5-flash-latest";
+    private static final String HARDCODED_MODEL = "gemini-2.0-flash";
 
     @Value("${gemini.api.key:}")
     private String apiKey;
