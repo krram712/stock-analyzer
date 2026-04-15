@@ -25,8 +25,8 @@ COPY --from=builder /app/target/stock-analyzer-backend-*.jar app.jar
 EXPOSE 8080
 
 ENV JAVA_OPTS="-Xms256m -Xmx512m -XX:+UseContainerSupport"
-# PORT is injected by Railway at runtime; Spring Boot reads it via server.port=${PORT:8080}
+# PORT is injected by Railway at runtime; default to 8080 locally
 ENV PORT=8080
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar --server.port=$PORT"]
 
