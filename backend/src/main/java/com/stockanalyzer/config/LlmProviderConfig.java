@@ -41,27 +41,22 @@ public class LlmProviderConfig {
         providers.add(geminiClient);
 
         // 2. Groq — very fast, free 30 RPM (no live web data)
-        if (!groqKey.isBlank()) {
-            providers.add(new OpenAiCompatibleClient(
-                    "Groq", "https://api.groq.com/openai",
-                    groqKey, groqModel, 8000, 60, objectMapper));
-        }
+        // Always added — isAvailable() returns false when key is blank, FallbackLlmClient skips it
+        providers.add(new OpenAiCompatibleClient(
+                "Groq", "https://api.groq.com/openai",
+                groqKey, groqModel, 8000, 60, objectMapper));
 
         // 3. OpenRouter — routes to many free models (no live web data)
-        if (!openrouterKey.isBlank()) {
-            providers.add(new OpenAiCompatibleClient(
-                    "OpenRouter", "https://openrouter.ai/api",
-                    openrouterKey, openrouterModel, 8000, 120, objectMapper,
-                    java.util.Map.of("HTTP-Referer", "https://stock-analyzer-neon.vercel.app",
-                                     "X-Title", "Stock Analyser")));
-        }
+        providers.add(new OpenAiCompatibleClient(
+                "OpenRouter", "https://openrouter.ai/api",
+                openrouterKey, openrouterModel, 8000, 120, objectMapper,
+                java.util.Map.of("HTTP-Referer", "https://stock-analyzer-neon.vercel.app",
+                                 "X-Title", "Stock Analyser")));
 
         // 4. Cerebras — ultra-fast inference, free tier (no live web data)
-        if (!cerebrasKey.isBlank()) {
-            providers.add(new OpenAiCompatibleClient(
-                    "Cerebras", "https://api.cerebras.ai",
-                    cerebrasKey, cerebrasModel, 8000, 60, objectMapper));
-        }
+        providers.add(new OpenAiCompatibleClient(
+                "Cerebras", "https://api.cerebras.ai",
+                cerebrasKey, cerebrasModel, 8000, 60, objectMapper));
 
         return providers;
     }

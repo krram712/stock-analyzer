@@ -29,14 +29,20 @@ public class GeminiClient implements LlmClient {
     private final WebClient geminiWebClient;
     private final ObjectMapper objectMapper;
 
+    /**
+     * HARDCODED — do NOT change to @Value("${gemini.model}").
+     * Spring Boot's relaxed binding maps env var GEMINI_MODEL → gemini.model,
+     * so a Railway env var would silently override the properties file.
+     * gemini-1.5-flash-latest: 15 RPM / 1500 RPD free, supports Google Search grounding.
+     */
+    private static final String HARDCODED_MODEL = "gemini-1.5-flash-latest";
+
     @Value("${gemini.api.key:}")
     private String apiKey;
 
     @Value("${gemini.api.url}")
     private String apiUrl;
 
-    @Value("${gemini.model}")
-    private String model;
 
     @Value("${gemini.max-tokens:8192}")
     private int maxTokens;
@@ -47,15 +53,15 @@ public class GeminiClient implements LlmClient {
     private long totalInputTokens  = 0;
     private long totalOutputTokens = 0;
 
-    @Override public String getProviderName() { return "Gemini(" + model + ")"; }
+    @Override public String getProviderName() { return "Gemini(" + HARDCODED_MODEL + ")"; }
     @Override public boolean isAvailable()    { return apiKey != null && !apiKey.isBlank(); }
 
     @Override
     public String complete(String systemPrompt, String userMessage) {
-        String url = apiUrl.replace("{model}", model);
+        String url = apiUrl.replace("{model}", HARDCODED_MODEL);
         ObjectNode body = buildRequest(systemPrompt, userMessage);
 
-        log.debug("Calling Gemini API (model={})...", model);
+        log.debug("Calling Gemini API (model={})...", HARDCODED_MODEL);
         String rawResponse = callWithRetry(body, url);
 
         JsonNode response;
@@ -117,8 +123,8 @@ public class GeminiClient implements LlmClient {
         long outTok = usage.path("candidatesTokenCount").asLong(0);
         totalInputTokens  += inTok;
         totalOutputTokens += outTok;
-        log.info("━━━ Gemini usage ━━━ input={} | output={} | session total={} tokens",
-                inTok, outTok, totalInputTokens + totalOutputTokens);
+        log.info("━━━ Gemini usage ━━━ input={} | output={} | session total={} tokens (model={})",
+                inTok, outTok, totalInputTokens + totalOutputTokens, HARDCODED_MODEL);
 
         return sanitiseJson(text);
     }
