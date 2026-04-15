@@ -99,11 +99,14 @@ public class GeminiClient {
         if ("MAX_TOKENS".equals(finishReason)) {
             log.warn("Gemini hit MAX_TOKENS ({} chars collected). Attempting to salvage partial JSON...", text.length());
             if (!text.isBlank()) {
-                try { return sanitiseJson(text); }
-                catch (Exception ignored) { /* fall through to hard error */ }
+                // Try salvaging as-is first
+                try { return sanitiseJson(text); } catch (Exception ignored) {}
+                // Try closing an open JSON object so it parses
+                String closed = closeOpenJson(text);
+                try { return sanitiseJson(closed); } catch (Exception ignored) {}
             }
             throw new AnalysisException(
-                    "Response was too long and was cut off. Try a shorter horizon (e.g. '1 year') or try again.", 500);
+                    "Response was too long and was cut off. Please try again.", 500);
         }
         if ("SAFETY".equals(finishReason)) {
             throw new AnalysisException("Gemini blocked the response for safety reasons.", 400);
@@ -285,6 +288,40 @@ public class GeminiClient {
 
     private void sleep(long ms) {
         try { Thread.sleep(ms); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+    }
+
+    /**
+     * Attempts to close a truncated JSON object by balancing open braces/brackets.
+     */
+    private String closeOpenJson(String partial) {
+        // Strip to the first { if mixed with preamble text
+        int start = partial.indexOf('{');
+        if (start == -1) return partial;
+        String s = partial.substring(start);
+
+        // Remove any trailing incomplete key-value pair (last comma or partial field)
+        int lastBrace = s.lastIndexOf('}');
+        int lastBracket = s.lastIndexOf(']');
+        int cutPoint = Math.max(lastBrace, lastBracket);
+        if (cutPoint > 0) s = s.substring(0, cutPoint + 1);
+
+        // Count unclosed braces and brackets
+        int braces = 0, brackets = 0;
+        boolean inString = false;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '"' && (i == 0 || s.charAt(i - 1) != '\\')) inString = !inString;
+            if (!inString) {
+                if (c == '{') braces++;
+                else if (c == '}') braces--;
+                else if (c == '[') brackets++;
+                else if (c == ']') brackets--;
+            }
+        }
+        StringBuilder sb = new StringBuilder(s);
+        for (int i = 0; i < brackets; i++) sb.append(']');
+        for (int i = 0; i < braces; i++) sb.append('}');
+        return sb.toString();
     }
 }
 
