@@ -3,12 +3,12 @@
  * All calls go through the Spring Boot backend, which proxies to Gemini.
  */
 
-// Sanitize BASE_URL: if set but missing a protocol, prepend https://
-// This prevents the browser from treating it as a relative path.
-let BASE_URL = (process.env.REACT_APP_API_BASE_URL || '').trim().replace(/\/$/, '');
-if (BASE_URL && !/^https?:\/\//i.test(BASE_URL)) {
-  BASE_URL = 'https://' + BASE_URL;
-}
+// Only use REACT_APP_API_BASE_URL if it has a proper absolute protocol.
+// If the value is missing "https://" it would be treated as a relative path by
+// the browser (e.g. "host.railway.app/api" → "vercel.app/host.railway.app/api").
+// In that case we fall back to "" so the Vercel proxy rewrite forwards the call.
+const _raw = (process.env.REACT_APP_API_BASE_URL || '').trim().replace(/\/$/, '');
+const BASE_URL = /^https?:\/\//i.test(_raw) ? _raw : '';
 
 const DEFAULT_TIMEOUT_MS = 180_000; // 180s — matches backend Gemini timeout
 
