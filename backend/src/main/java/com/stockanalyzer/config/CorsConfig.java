@@ -21,8 +21,14 @@ public class CorsConfig {
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         CorsConfiguration config = new CorsConfiguration();
 
+        // Support both exact origins and wildcard patterns (e.g. *.vercel.app)
         List<String> origins = Arrays.asList(allowedOriginsStr.split(","));
-        config.setAllowedOrigins(origins);
+        List<String> exact   = origins.stream().filter(o -> !o.contains("*")).toList();
+        List<String> pattern = origins.stream().filter(o ->  o.contains("*")).toList();
+
+        if (!exact.isEmpty())   config.setAllowedOrigins(exact);
+        if (!pattern.isEmpty()) config.setAllowedOriginPatterns(pattern);
+
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("X-Processing-Time-Ms"));
