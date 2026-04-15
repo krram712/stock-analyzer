@@ -3,7 +3,12 @@
  * All calls go through the Spring Boot backend, which proxies to Gemini.
  */
 
-const BASE_URL = process.env.REACT_APP_API_BASE_URL || '';
+// Sanitize BASE_URL: if set but missing a protocol, prepend https://
+// This prevents the browser from treating it as a relative path.
+let BASE_URL = (process.env.REACT_APP_API_BASE_URL || '').trim().replace(/\/$/, '');
+if (BASE_URL && !/^https?:\/\//i.test(BASE_URL)) {
+  BASE_URL = 'https://' + BASE_URL;
+}
 
 const DEFAULT_TIMEOUT_MS = 180_000; // 180s — matches backend Gemini timeout
 
