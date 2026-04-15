@@ -17,7 +17,7 @@ import java.util.concurrent.TimeUnit;
 @Configuration
 public class WebClientConfig {
 
-    @Value("${gemini.timeout-seconds:120}")
+    @Value("${gemini.timeout-seconds:180}")
     private int timeoutSeconds;
 
     @Bean

@@ -222,25 +222,30 @@ public class GeminiClient {
                 if (status == HttpStatus.UNAUTHORIZED.value() || status == 403) {
                     throw new AnalysisException("Invalid Gemini API key. Check your GEMINI_API_KEY environment variable.", 401);
                 }
-                if (status == 400) {
+                if (status == 400 || status == 404) {
                     try {
                         JsonNode errNode = objectMapper.readTree(responseBody);
                         String msg = errNode.path("error").path("message").asText(responseBody);
-                        throw new AnalysisException("Gemini API bad request: " + msg, 400);
+                        throw new AnalysisException("Gemini API error: " + msg, status);
                     } catch (AnalysisException ae) { throw ae; }
-                    catch (Exception e) { throw new AnalysisException("Gemini API returned 400: " + responseBody, 400); }
+                    catch (Exception e) { throw new AnalysisException("Gemini API returned " + status + ": " + responseBody, status); }
                 }
                 if (status == HttpStatus.TOO_MANY_REQUESTS.value()) {
                     if (attempts <= maxRetries) {
-                        log.warn("Gemini rate limit hit (attempt {}). Waiting 60s...", attempts);
-                        try { Thread.sleep(60_000L); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                        // Honour Retry-After header; fall back to exponential backoff
+                        long waitMs = resolveRetryAfterMs(ex, attempts);
+                        log.warn("Gemini rate limit hit (attempt {}/{}). Waiting {}s before retry...",
+                                attempts, maxRetries + 1, waitMs / 1000);
+                        sleep(waitMs);
                         continue;
                     }
-                    throw new AnalysisException("Gemini rate limit reached. Please wait a minute and try again.", 429);
+                    throw new AnalysisException(
+                            "Gemini free-tier rate limit reached. Please wait ~60 seconds and try again.", 429);
                 }
                 if (status >= 500 && attempts <= maxRetries) {
-                    log.warn("Retrying after Gemini server error ({})...", status);
-                    try { Thread.sleep(2000L * attempts); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                    long waitMs = 3000L * attempts; // 3s, 6s, 9s…
+                    log.warn("Retrying after Gemini server error {} in {}ms...", status, waitMs);
+                    sleep(waitMs);
                     continue;
                 }
                 throw new AnalysisException("Gemini API returned " + status + ": " + responseBody);
@@ -249,13 +254,31 @@ public class GeminiClient {
                 throw ae;
             } catch (Exception ex) {
                 if (attempts <= maxRetries) {
-                    log.warn("Retrying after transient error: {}", ex.getMessage());
-                    try { Thread.sleep(2000L * attempts); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+                    long waitMs = 3000L * attempts;
+                    log.warn("Retrying after transient error in {}ms: {}", waitMs, ex.getMessage());
+                    sleep(waitMs);
                     continue;
                 }
                 throw new AnalysisException("Failed to call Gemini API: " + ex.getMessage(), ex);
             }
         }
+    }
+
+    /**
+     * Reads Retry-After header (seconds) from a 429 response.
+     * Falls back to exponential backoff: 65s, 90s, 120s, …
+     */
+    private long resolveRetryAfterMs(WebClientResponseException ex, int attempt) {
+        String retryAfter = ex.getHeaders().getFirst("Retry-After");
+        if (retryAfter != null) {
+            try { return Long.parseLong(retryAfter.trim()) * 1000L; } catch (NumberFormatException ignored) {}
+        }
+        // Gemini free tier resets every 60s; add a small buffer + jitter per attempt
+        return 65_000L + (long)(attempt - 1) * 30_000L;
+    }
+
+    private void sleep(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
     }
 }
 
