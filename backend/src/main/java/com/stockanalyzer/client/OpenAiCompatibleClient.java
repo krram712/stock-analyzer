@@ -37,18 +37,30 @@ public class OpenAiCompatibleClient implements LlmClient {
                                    int    maxTokens,
                                    int    timeoutSeconds,
                                    ObjectMapper objectMapper) {
+        this(providerName, baseUrl, apiKey, model, maxTokens, timeoutSeconds, objectMapper, java.util.Map.of());
+    }
+
+    public OpenAiCompatibleClient(String providerName,
+                                   String baseUrl,
+                                   String apiKey,
+                                   String model,
+                                   int    maxTokens,
+                                   int    timeoutSeconds,
+                                   ObjectMapper objectMapper,
+                                   java.util.Map<String, String> extraHeaders) {
         this.providerName  = providerName;
         this.baseUrl       = baseUrl;
         this.apiKey        = apiKey;
         this.model         = model;
         this.maxTokens     = maxTokens;
         this.objectMapper  = objectMapper;
-        this.webClient     = WebClient.builder()
+        var builder = WebClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
                 .defaultHeader("Content-Type", "application/json")
-                .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024))
-                .build();
+                .codecs(c -> c.defaultCodecs().maxInMemorySize(10 * 1024 * 1024));
+        extraHeaders.forEach(builder::defaultHeader);
+        this.webClient = builder.build();
     }
 
     @Override public String getProviderName() { return providerName + "(" + model + ")"; }
