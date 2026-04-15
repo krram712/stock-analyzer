@@ -282,8 +282,8 @@ public class GeminiClient {
         if (retryAfter != null) {
             try { return Long.parseLong(retryAfter.trim()) * 1000L; } catch (NumberFormatException ignored) {}
         }
-        // Gemini free tier resets every 60s; add a small buffer + jitter per attempt
-        return 65_000L + (long)(attempt - 1) * 30_000L;
+        // Wait 30s on first retry — gemini-1.5-flash resets within a minute
+        return 30_000L + (long)(attempt - 1) * 15_000L;
     }
 
     private void sleep(long ms) {
