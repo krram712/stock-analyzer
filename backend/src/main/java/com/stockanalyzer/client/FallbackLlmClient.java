@@ -32,14 +32,15 @@ public class FallbackLlmClient {
         // First pass — try all providers
         List<String> failed  = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
-        boolean allRateLimited = true;
+        int rateLimitedCount = 0;
+        int availableCount   = 0;
 
         for (LlmClient provider : providers) {
             if (!provider.isAvailable()) {
                 skipped.add(provider.getProviderName());
-                allRateLimited = false; // unavailable doesn't count as rate-limited
                 continue;
             }
+            availableCount++;
             try {
                 log.info("Attempting analysis with provider: {}", provider.getProviderName());
                 String result = provider.complete(systemPrompt, userMessage);
@@ -50,15 +51,17 @@ public class FallbackLlmClient {
                         + " (status=" + ex.getStatusCode() + ")";
                 log.warn("Provider failed: {}", detail);
                 failed.add(detail);
-                if (ex.getStatusCode() != 429) {
-                    allRateLimited = false;
-                }
+                if (ex.getStatusCode() == 429) rateLimitedCount++;
             }
         }
 
-        // If every available provider was rate-limited, wait 65s and retry once
-        if (allRateLimited && !failed.isEmpty()) {
-            log.warn("All providers rate-limited. Waiting 65s before retry...");
+        // If majority of available providers were rate-limited (≥60%), wait 65s and retry
+        boolean mostlyRateLimited = availableCount > 0
+                && (rateLimitedCount * 100 / availableCount) >= 60;
+
+        if (mostlyRateLimited) {
+            log.warn("Most providers rate-limited ({}/{}). Waiting 65s before retry...",
+                    rateLimitedCount, availableCount);
             try { Thread.sleep(65_000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
 
             failed.clear();

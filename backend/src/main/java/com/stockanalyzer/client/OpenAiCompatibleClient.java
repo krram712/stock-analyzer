@@ -30,6 +30,8 @@ public class OpenAiCompatibleClient implements LlmClient {
     private final ObjectMapper objectMapper;
     private final WebClient webClient;
 
+    private final boolean forceJsonFormat;
+
     public OpenAiCompatibleClient(String providerName,
                                    String baseUrl,
                                    String apiKey,
@@ -37,7 +39,7 @@ public class OpenAiCompatibleClient implements LlmClient {
                                    int    maxTokens,
                                    int    timeoutSeconds,
                                    ObjectMapper objectMapper) {
-        this(providerName, baseUrl, apiKey, model, maxTokens, timeoutSeconds, objectMapper, java.util.Map.of());
+        this(providerName, baseUrl, apiKey, model, maxTokens, timeoutSeconds, objectMapper, java.util.Map.of(), false);
     }
 
     public OpenAiCompatibleClient(String providerName,
@@ -48,12 +50,25 @@ public class OpenAiCompatibleClient implements LlmClient {
                                    int    timeoutSeconds,
                                    ObjectMapper objectMapper,
                                    java.util.Map<String, String> extraHeaders) {
-        this.providerName  = providerName;
-        this.baseUrl       = baseUrl;
-        this.apiKey        = apiKey;
-        this.model         = model;
-        this.maxTokens     = maxTokens;
-        this.objectMapper  = objectMapper;
+        this(providerName, baseUrl, apiKey, model, maxTokens, timeoutSeconds, objectMapper, extraHeaders, false);
+    }
+
+    public OpenAiCompatibleClient(String providerName,
+                                   String baseUrl,
+                                   String apiKey,
+                                   String model,
+                                   int    maxTokens,
+                                   int    timeoutSeconds,
+                                   ObjectMapper objectMapper,
+                                   java.util.Map<String, String> extraHeaders,
+                                   boolean forceJsonFormat) {
+        this.providerName    = providerName;
+        this.baseUrl         = baseUrl;
+        this.apiKey          = apiKey;
+        this.model           = model;
+        this.maxTokens       = maxTokens;
+        this.objectMapper    = objectMapper;
+        this.forceJsonFormat = forceJsonFormat;
         var builder = WebClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
@@ -89,6 +104,13 @@ public class OpenAiCompatibleClient implements LlmClient {
         messages.add(user);
 
         body.set("messages", messages);
+
+        // Force JSON output for providers that support it (reduces parse failures)
+        if (forceJsonFormat) {
+            ObjectNode fmt = objectMapper.createObjectNode();
+            fmt.put("type", "json_object");
+            body.set("response_format", fmt);
+        }
 
         log.info("Calling {} API (model={})...", providerName, model);
 

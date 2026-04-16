@@ -40,7 +40,7 @@ public class LlmProviderConfig {
     @Value("${openrouter.model:meta-llama/llama-3.3-70b-instruct:free}") private String openrouterModel;
 
     @Value("${cerebras.api.key:}")     private String cerebrasKey;
-    @Value("${cerebras.model:llama3.3-70b}") private String cerebrasModel;
+    @Value("${cerebras.model:llama3.1-8b}") private String cerebrasModel;
 
     @Value("${sambanova.api.key:}")    private String sambanovaKey;
     @Value("${sambanova.model:Meta-Llama-3.3-70B-Instruct}") private String sambanovaModel;
@@ -60,44 +60,41 @@ public class LlmProviderConfig {
         providers.add(new GeminiClient(geminiWebClient, objectMapper, geminiKey, geminiApiUrl,
                 "gemini-2.0-flash-lite", geminiMaxTokens, geminiMaxRetries));
 
-        // 3. Groq llama-3.3-70b — very fast, free 30 RPM
+        // 3. Groq llama-3.3-70b — very fast, free 30 RPM (large context, handles full prompt)
         providers.add(new OpenAiCompatibleClient(
                 "Groq", "https://api.groq.com/openai",
                 groqKey, groqModel, 8000, 60, objectMapper));
 
-        // 4. Groq llama-3.1-8b-instant — separate quota from 70b, 30 RPM
-        providers.add(new OpenAiCompatibleClient(
-                "Groq", "https://api.groq.com/openai",
-                groqKey, "llama-3.1-8b-instant", 8000, 60, objectMapper));
-
-        // 5. Cerebras — ultra-fast free tier (fixed model name)
+        // 4. Cerebras llama3.1-8b — ultra-fast free tier (small model, may give simpler output)
         providers.add(new OpenAiCompatibleClient(
                 "Cerebras", "https://api.cerebras.ai",
                 cerebrasKey, cerebrasModel, 8000, 60, objectMapper));
 
-        // 6. SambaNova — free 60 RPM, Llama 3.3 70B
+        // 5. SambaNova — free 60 RPM, force JSON output to avoid parse failures
         providers.add(new OpenAiCompatibleClient(
                 "SambaNova", "https://api.sambanova.ai",
-                sambanovaKey, sambanovaModel, 8000, 90, objectMapper));
+                sambanovaKey, sambanovaModel, 8000, 90, objectMapper,
+                java.util.Map.of(), true));
 
-        // 7. OpenRouter — free model pool, primary model
+        // 6. OpenRouter — free model pool, primary model
         providers.add(new OpenAiCompatibleClient(
                 "OpenRouter", "https://openrouter.ai/api",
                 openrouterKey, openrouterModel, 8000, 120, objectMapper,
                 Map.of("HTTP-Referer", "https://stock-analyzer-neon.vercel.app",
                        "X-Title", "Stock Analyser")));
 
-        // 8. OpenRouter — second free model (google/gemma-3-27b-it)
+        // 7. OpenRouter — second free model (google/gemma-3-27b-it)
         providers.add(new OpenAiCompatibleClient(
                 "OpenRouter", "https://openrouter.ai/api",
                 openrouterKey, "google/gemma-3-27b-it:free", 8000, 120, objectMapper,
                 Map.of("HTTP-Referer", "https://stock-analyzer-neon.vercel.app",
                        "X-Title", "Stock Analyser")));
 
-        // 9. Together AI — free tier
+        // 8. Together AI — free tier, force JSON
         providers.add(new OpenAiCompatibleClient(
                 "Together", "https://api.together.xyz",
-                togetherKey, togetherModel, 8000, 120, objectMapper));
+                togetherKey, togetherModel, 8000, 120, objectMapper,
+                java.util.Map.of(), true));
 
         return providers;
     }

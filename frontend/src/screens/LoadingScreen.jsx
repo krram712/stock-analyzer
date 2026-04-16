@@ -41,8 +41,9 @@ export default function LoadingScreen() {
         </div>
 
         <p className="loading-note">
-          Gemini is searching live financial data &amp; SEC filings.<br/>
-          This typically takes 60–120 seconds.
+          Searching live financial data across 8 AI providers.<br/>
+          Typically 30–120 seconds. If all providers are rate-limited,
+          the backend will automatically wait 65s and retry — please keep this page open.
         </p>
       </div>
     </div>
