@@ -24,4 +24,13 @@ public class AnalysisResponse {
     private long processingTimeMs;
     private String ticker;
     private String horizon;
+
+    /** "LIVE" = freshly fetched from AI; "CACHED" = served from in-memory cache */
+    private String dataSource;
+
+    /** Epoch-ms when the data was originally fetched (same as timestamp for LIVE, older for CACHED) */
+    private long fetchedAt;
+
+    /** The asOfDate used for this analysis (null = latest available) */
+    private String asOfDate;
 }

@@ -16,4 +16,12 @@ public class AnalysisRequest {
     @NotBlank(message = "Investment horizon is required")
     @Size(min = 1, max = 50, message = "Horizon must be 1–50 characters")
     private String horizon;
+
+    /**
+     * Optional: fetch/analyse data as of this date (format: YYYY-MM-DD).
+     * If null or blank, the latest available data is used.
+     */
+    @Size(max = 10, message = "Date must be in YYYY-MM-DD format")
+    @Pattern(regexp = "^(\\d{4}-\\d{2}-\\d{2})?$", message = "Date must be in YYYY-MM-DD format")
+    private String asOfDate;
 }

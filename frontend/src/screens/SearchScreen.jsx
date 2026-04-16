@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { fetchPopularTickers } from '../api/stockApi';
 
@@ -12,27 +12,34 @@ export default function SearchScreen() {
   const [showCustom, setShowCustom] = useState(false);
   const [popularTickers, setPopularTickers] = useState([]);
   const [validationError, setValidationError] = useState('');
+  const [asOfDate, setAsOfDate] = useState('');
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     fetchPopularTickers().then(setPopularTickers);
   }, []);
 
   const effectiveHorizon = showCustom ? customHorizon : horizon;
+  const today = new Date().toISOString().split('T')[0];
 
   function validate() {
     if (!ticker.trim()) { setValidationError('Please enter a stock ticker.'); return false; }
     if (!/^[A-Za-z.\-]{1,10}$/.test(ticker.trim())) {
-      setValidationError('Ticker must be 1–10 letters (e.g. AAPL, BRK.B).');
+      setValidationError('Ticker must be 1â€“10 letters (e.g. AAPL, BRK.B).');
       return false;
     }
     if (!effectiveHorizon.trim()) { setValidationError('Please specify an investment horizon.'); return false; }
+    if (asOfDate && !/^\d{4}-\d{2}-\d{2}$/.test(asOfDate)) {
+      setValidationError('Date must be in YYYY-MM-DD format.');
+      return false;
+    }
     setValidationError('');
     return true;
   }
 
   function handleSubmit(e) {
     e.preventDefault();
-    if (validate()) startAnalysis(ticker.trim(), effectiveHorizon.trim());
+    if (validate()) startAnalysis(ticker.trim(), effectiveHorizon.trim(), asOfDate || null);
   }
 
   function handlePopularTicker(t) {
@@ -44,17 +51,17 @@ export default function SearchScreen() {
     <div className="search-screen">
       {/* Header */}
       <div className="search-header">
-        <div className="logo-icon">📊</div>
+        <div className="logo-icon">ðŸ“Š</div>
         <h1 className="app-title">Stock Fundamental<br/>Analyser</h1>
         <p className="app-subtitle">AI-powered fundamental analysis for long-term investors</p>
-        <div className="powered-badge">Powered by Claude AI · Live Data</div>
+        <div className="powered-badge">Powered by AI Â· Live &amp; Historical Data</div>
       </div>
 
       {/* Form */}
       <form className="search-form" onSubmit={handleSubmit}>
         <div className="form-group">
           <label className="form-label">
-            <span className="label-icon">📌</span> Stock Ticker / Company
+            <span className="label-icon">ðŸ“Œ</span> Stock Ticker / Company
           </label>
           <input
             type="text"
@@ -87,7 +94,7 @@ export default function SearchScreen() {
 
         <div className="form-group">
           <label className="form-label">
-            <span className="label-icon">⏳</span> Investment Horizon
+            <span className="label-icon">â³</span> Investment Horizon
           </label>
           <div className="horizon-options">
             {HORIZONS.map(h => (
@@ -120,12 +127,54 @@ export default function SearchScreen() {
           )}
         </div>
 
+        {/* Date selector */}
+        <div className="form-group">
+          <div className="date-toggle-row">
+            <label className="form-label" style={{ marginBottom: 0 }}>
+              <span className="label-icon">ðŸ“…</span> Data Date
+            </label>
+            <div className="date-mode-chips">
+              <button
+                type="button"
+                className={`horizon-chip ${!showDatePicker ? 'active' : ''}`}
+                onClick={() => { setShowDatePicker(false); setAsOfDate(''); }}
+              >
+                ðŸŸ¢ Latest / Live
+              </button>
+              <button
+                type="button"
+                className={`horizon-chip ${showDatePicker ? 'active' : ''}`}
+                onClick={() => setShowDatePicker(true)}
+              >
+                ðŸ“† Specific Date
+              </button>
+            </div>
+          </div>
+          {showDatePicker && (
+            <input
+              type="date"
+              className="form-input"
+              value={asOfDate}
+              max={today}
+              min="2010-01-01"
+              onChange={e => setAsOfDate(e.target.value)}
+              style={{ marginTop: '8px' }}
+            />
+          )}
+          {!showDatePicker && (
+            <div className="date-hint">AI will fetch the most current available data</div>
+          )}
+          {showDatePicker && asOfDate && (
+            <div className="date-hint">AI will search for data as of <strong>{asOfDate}</strong></div>
+          )}
+        </div>
+
         {validationError && (
-          <div className="validation-error">⚠ {validationError}</div>
+          <div className="validation-error">âš  {validationError}</div>
         )}
 
         <button type="submit" className="analyse-btn">
-          <span className="btn-icon">🔍</span>
+          <span className="btn-icon">ðŸ”</span>
           Analyse Stock
         </button>
       </form>

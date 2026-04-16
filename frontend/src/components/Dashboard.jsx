@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Badge from './common/Badge';
 import MetricCard from './common/MetricCard';
 import DataTable from './common/DataTable';
+import { useApp } from '../context/AppContext';
 
 // ─── Tab components ───────────────────────────────────────────────────────────
 
@@ -407,7 +408,26 @@ function TabView({ d }) {
 const TABS = ['Overview', 'Valuation', 'Growth', 'Health', 'Returns', 'Peers', 'Ownership', 'View'];
 
 export default function Dashboard({ data }) {
-  const [activeTab, setActiveTab] = useState(7); // Default: View tab
+  const [activeTab, setActiveTab] = useState(7);
+  const { responseMeta } = useApp();
+
+  // Format fetchedAt epoch to human-readable
+  function formatFetchedAt(epochMs) {
+    if (!epochMs) return null;
+    const d = new Date(epochMs);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'just now';
+    if (diffMin < 60) return `${diffMin} min ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  const isLive = !responseMeta || responseMeta.dataSource === 'LIVE';
+  const fetchedLabel = responseMeta ? formatFetchedAt(responseMeta.fetchedAt) : null;
+  const asOfLabel = responseMeta?.asOfDate ? `Historical · As of ${responseMeta.asOfDate}` : null;
 
   const renderTab = () => {
     switch (activeTab) {
@@ -425,6 +445,22 @@ export default function Dashboard({ data }) {
 
   return (
     <div className="dashboard-wrapper">
+      {/* Data freshness banner */}
+      <div className={`data-freshness-banner ${isLive ? 'freshness-live' : 'freshness-cached'}`}>
+        <span className="freshness-icon">{asOfLabel ? '📆' : isLive ? '🟢' : '🕐'}</span>
+        <span className="freshness-label">
+          {asOfLabel
+            ? asOfLabel
+            : isLive
+              ? `Live Data · Fetched ${fetchedLabel || 'just now'}`
+              : `Cached Data · Fetched ${fetchedLabel || 'recently'} (served from cache)`
+          }
+        </span>
+        {data.priceDate && (
+          <span className="freshness-price-date">Price date: {data.priceDate}</span>
+        )}
+      </div>
+
       {/* Company header */}
       <div className="company-header">
         <div className="company-info">

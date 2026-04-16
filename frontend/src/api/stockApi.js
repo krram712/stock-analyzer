@@ -58,8 +58,11 @@ export async function warmUpBackend() {
 /**
  * Analyse a stock ticker with the given investment horizon.
  * Automatically retries up to MAX_502_RETRIES times on 502 (Railway cold start).
+ * @param {string} ticker
+ * @param {string} horizon
+ * @param {string|null} asOfDate  Optional YYYY-MM-DD. If null, fetches latest data.
  */
-export async function analyseStock(ticker, horizon, _retry = 0) {
+export async function analyseStock(ticker, horizon, asOfDate = null, _retry = 0) {
   const url = `${BASE_URL}/api/v1/analyze`;
 
   let res;
@@ -67,7 +70,11 @@ export async function analyseStock(ticker, horizon, _retry = 0) {
     res = await fetchWithTimeout(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ticker: ticker.trim().toUpperCase(), horizon }),
+      body: JSON.stringify({
+        ticker: ticker.trim().toUpperCase(),
+        horizon,
+        ...(asOfDate ? { asOfDate } : {}),
+      }),
     });
   } catch (err) {
     if (err.message.includes('timed out')) throw err;
@@ -77,7 +84,7 @@ export async function analyseStock(ticker, horizon, _retry = 0) {
   // 502 = Railway backend is cold-starting — wait and retry automatically
   if (res.status === 502 && _retry < MAX_502_RETRIES) {
     await sleep(COLD_START_WAIT_MS);
-    return analyseStock(ticker, horizon, _retry + 1);
+    return analyseStock(ticker, horizon, asOfDate, _retry + 1);
   }
 
   // Detect HTML response (wrong URL / misconfiguration)
@@ -97,7 +104,14 @@ export async function analyseStock(ticker, horizon, _retry = 0) {
     throw new Error(json.message || `Server error ${res.status}. Please try again.`);
   }
 
-  return json.data;
+  // Return enriched object: the AI data + metadata about freshness
+  return {
+    data: json.data,
+    dataSource: json.dataSource || 'LIVE',   // "LIVE" or "CACHED"
+    fetchedAt: json.fetchedAt || json.timestamp,
+    processingTimeMs: json.processingTimeMs,
+    asOfDate: json.asOfDate || null,
+  };
 }
 
 /**

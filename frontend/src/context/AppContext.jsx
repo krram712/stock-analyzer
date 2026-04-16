@@ -6,6 +6,7 @@ const AppContext = createContext(null);
 export function AppProvider({ children }) {
   const [screen, setScreen] = useState('search');       // 'search' | 'loading' | 'dashboard' | 'error'
   const [analysisData, setAnalysisData] = useState(null);
+  const [responseMeta, setResponseMeta] = useState(null); // { dataSource, fetchedAt, asOfDate }
   const [errorMsg, setErrorMsg] = useState('');
   const [loadingStage, setLoadingStage] = useState(0);  // 0-4 progress stages
   const [lastQuery, setLastQuery] = useState(null);
@@ -21,11 +22,11 @@ export function AppProvider({ children }) {
   // Warm up the Railway backend as soon as the app loads so the JVM is ready
   useEffect(() => { warmUpBackend(); }, []);
 
-  const startAnalysis = useCallback(async (ticker, horizon) => {
+  const startAnalysis = useCallback(async (ticker, horizon, asOfDate = null) => {
     setScreen('loading');
     setLoadingStage(0);
     setErrorMsg('');
-    setLastQuery({ ticker, horizon });
+    setLastQuery({ ticker, horizon, asOfDate });
 
     // Cycle through loading stage messages while waiting
     const interval = setInterval(() => {
@@ -33,9 +34,15 @@ export function AppProvider({ children }) {
     }, 12_000);
 
     try {
-      const data = await analyseStock(ticker, horizon);
+      const result = await analyseStock(ticker, horizon, asOfDate);
       clearInterval(interval);
-      setAnalysisData(data);
+      setAnalysisData(result.data);
+      setResponseMeta({
+        dataSource: result.dataSource,
+        fetchedAt: result.fetchedAt,
+        asOfDate: result.asOfDate,
+        processingTimeMs: result.processingTimeMs,
+      });
       setScreen('dashboard');
     } catch (err) {
       clearInterval(interval);
@@ -47,17 +54,19 @@ export function AppProvider({ children }) {
   const goBack = useCallback(() => {
     setScreen('search');
     setAnalysisData(null);
+    setResponseMeta(null);
     setErrorMsg('');
   }, []);
 
   const retry = useCallback(() => {
-    if (lastQuery) startAnalysis(lastQuery.ticker, lastQuery.horizon);
+    if (lastQuery) startAnalysis(lastQuery.ticker, lastQuery.horizon, lastQuery.asOfDate);
   }, [lastQuery, startAnalysis]);
 
   return (
     <AppContext.Provider value={{
       screen,
       analysisData,
+      responseMeta,
       errorMsg,
       loadingStage,
       loadingStages: LOADING_STAGES,

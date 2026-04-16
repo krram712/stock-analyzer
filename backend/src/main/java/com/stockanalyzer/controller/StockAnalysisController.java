@@ -41,11 +41,14 @@ public class StockAnalysisController {
         AnalysisResponse response = stockAnalysisService.analyse(
                 request.getTicker(),
                 request.getHorizon(),
-                clientIp
+                clientIp,
+                request.getAsOfDate()
         );
 
         return ResponseEntity.ok()
                 .header("X-Processing-Time-Ms", String.valueOf(response.getProcessingTimeMs()))
+                .header("X-Data-Source", response.getDataSource())
+                .header("X-Fetched-At", String.valueOf(response.getFetchedAt()))
                 .body(response);
     }
 

@@ -593,3 +593,56 @@ a { color: var(--accent); }
   line-height: 1.6;
   margin-top: 4px;
 }
+
+/* ── DATA FRESHNESS BANNER ───────────────────────────────────────────────── */
+.data-freshness-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  margin: 8px 12px 0;
+  font-size: 12px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+.freshness-live {
+  background: var(--green-bg);
+  border: 1px solid var(--green-border);
+  color: var(--green-text);
+}
+.freshness-cached {
+  background: var(--yellow-bg);
+  border: 1px solid var(--yellow-border);
+  color: var(--yellow-text);
+}
+.freshness-icon { font-size: 14px; }
+.freshness-label { flex: 1; }
+.freshness-price-date {
+  font-size: 11px;
+  font-weight: 400;
+  opacity: 0.85;
+  margin-left: auto;
+}
+
+/* ── DATE PICKER ROW ─────────────────────────────────────────────────────── */
+.date-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+.date-mode-chips {
+  display: flex;
+  gap: 6px;
+}
+.date-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  padding: 4px 8px;
+  background: var(--bg);
+  border-radius: var(--radius-sm);
+}
+
