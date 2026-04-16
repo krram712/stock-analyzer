@@ -11,12 +11,10 @@ import java.util.List;
  * Tries each configured LLM provider in order.
  * Falls through to the next provider on any error.
  *
- * Provider order (configured in LlmProviderConfig):
- *   1. Gemini 2.0 Flash      — Google Search grounding, 15 RPM free
- *   2. Gemini 2.0 Flash Lite — Google Search grounding, 30 RPM free (separate quota)
- *   3. Groq Llama 3.3 70b    — fast, 30 RPM free, no live web data
- *   4. OpenRouter             — free model pool, no live web data
- *   5. Cerebras               — ultra-fast free tier, no live web data
+ * Special handling:
+ *  - 429 (rate-limited): tries next provider immediately
+ *  - If EVERY provider returns 429, waits 65s then retries all once more
+ *  - Non-429 errors: tries next provider
  */
 @Slf4j
 @Component
@@ -31,13 +29,15 @@ public class FallbackLlmClient {
     }
 
     public String complete(String systemPrompt, String userMessage) {
+        // First pass — try all providers
         List<String> failed  = new ArrayList<>();
         List<String> skipped = new ArrayList<>();
+        boolean allRateLimited = true;
 
         for (LlmClient provider : providers) {
             if (!provider.isAvailable()) {
-                log.info("Skipping {} — no API key configured in Railway", provider.getProviderName());
                 skipped.add(provider.getProviderName());
+                allRateLimited = false; // unavailable doesn't count as rate-limited
                 continue;
             }
             try {
@@ -46,23 +46,47 @@ public class FallbackLlmClient {
                 log.info("Analysis succeeded via {}", provider.getProviderName());
                 return result;
             } catch (AnalysisException ex) {
-                String detail = provider.getProviderName() + " → " + ex.getMessage() + " (status=" + ex.getStatusCode() + ")";
+                String detail = provider.getProviderName() + " → " + ex.getMessage()
+                        + " (status=" + ex.getStatusCode() + ")";
                 log.warn("Provider failed: {}", detail);
                 failed.add(detail);
-                // Always try next provider
+                if (ex.getStatusCode() != 429) {
+                    allRateLimited = false;
+                }
             }
         }
 
-        // Build a clear error message showing both failed and skipped providers
+        // If every available provider was rate-limited, wait 65s and retry once
+        if (allRateLimited && !failed.isEmpty()) {
+            log.warn("All providers rate-limited. Waiting 65s before retry...");
+            try { Thread.sleep(65_000); } catch (InterruptedException ie) { Thread.currentThread().interrupt(); }
+
+            failed.clear();
+            for (LlmClient provider : providers) {
+                if (!provider.isAvailable()) continue;
+                try {
+                    log.info("Retry attempt with provider: {}", provider.getProviderName());
+                    String result = provider.complete(systemPrompt, userMessage);
+                    log.info("Retry succeeded via {}", provider.getProviderName());
+                    return result;
+                } catch (AnalysisException ex) {
+                    String detail = provider.getProviderName() + " → " + ex.getMessage()
+                            + " (status=" + ex.getStatusCode() + ")";
+                    log.warn("Retry provider failed: {}", detail);
+                    failed.add(detail);
+                }
+            }
+        }
+
+        // Build error message
         StringBuilder msg = new StringBuilder();
         if (!failed.isEmpty()) {
-            msg.append("All providers failed:\n").append(String.join("\n", failed));
+            msg.append("All providers failed: ").append(String.join(" | ", failed));
         }
         if (!skipped.isEmpty()) {
             if (msg.length() > 0) msg.append("\n\n");
-            msg.append("Skipped (no API key set in Railway):\n")
-               .append(String.join(", ", skipped))
-               .append("\n→ Add GROQ_API_KEY / OPENROUTER_API_KEY / CEREBRAS_API_KEY in Railway → Variables");
+            msg.append("Skipped (no API key): ").append(String.join(", ", skipped))
+               .append("\n→ Add GROQ_API_KEY / OPENROUTER_API_KEY / CEREBRAS_API_KEY / SAMBANOVA_API_KEY / TOGETHER_API_KEY in Railway → Variables");
         }
         if (msg.length() == 0) {
             msg.append("No AI providers configured. Set GEMINI_API_KEY in Railway.");
