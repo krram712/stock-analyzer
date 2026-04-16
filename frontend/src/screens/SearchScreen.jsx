@@ -25,7 +25,7 @@ export default function SearchScreen() {
   function validate() {
     if (!ticker.trim()) { setValidationError('Please enter a stock ticker.'); return false; }
     if (!/^[A-Za-z.\-]{1,10}$/.test(ticker.trim())) {
-      setValidationError('Ticker must be 1â€“10 letters (e.g. AAPL, BRK.B).');
+      setValidationError('Ticker must be 1-10 letters (e.g. AAPL, BRK.B).');
       return false;
     }
     if (!effectiveHorizon.trim()) { setValidationError('Please specify an investment horizon.'); return false; }
@@ -49,20 +49,18 @@ export default function SearchScreen() {
 
   return (
     <div className="search-screen">
-      {/* Header */}
       <div className="search-header">
-        <div className="logo-icon">ðŸ“Š</div>
-        <h1 className="app-title">Stock Fundamental<br/>Analyser</h1>
+        <div className="logo-icon">&#x1F4CA;</div>
+        <h1 className="app-title">Stock Fundamental Analyser</h1>
         <p className="app-subtitle">AI-powered fundamental analysis for long-term investors</p>
-        <div className="powered-badge">Powered by AI Â· Live &amp; Historical Data</div>
+        <div className="powered-badge">Powered by AI · Live & Historical Data</div>
       </div>
 
-      {/* Form */}
       <form className="search-form" onSubmit={handleSubmit}>
+
+        {/* Ticker */}
         <div className="form-group">
-          <label className="form-label">
-            <span className="label-icon">ðŸ“Œ</span> Stock Ticker / Company
-          </label>
+          <label className="form-label">Stock Ticker</label>
           <input
             type="text"
             className="form-input ticker-input"
@@ -92,10 +90,9 @@ export default function SearchScreen() {
           </div>
         )}
 
+        {/* Horizon */}
         <div className="form-group">
-          <label className="form-label">
-            <span className="label-icon">â³</span> Investment Horizon
-          </label>
+          <label className="form-label">Investment Horizon</label>
           <div className="horizon-options">
             {HORIZONS.map(h => (
               <button
@@ -127,29 +124,28 @@ export default function SearchScreen() {
           )}
         </div>
 
-        {/* Date selector */}
+        {/* Data Date */}
         <div className="form-group">
-          <div className="date-toggle-row">
-            <label className="form-label" style={{ marginBottom: 0 }}>
-              <span className="label-icon">ðŸ“…</span> Data Date
-            </label>
-            <div className="date-mode-chips">
-              <button
-                type="button"
-                className={`horizon-chip ${!showDatePicker ? 'active' : ''}`}
-                onClick={() => { setShowDatePicker(false); setAsOfDate(''); }}
-              >
-                ðŸŸ¢ Latest / Live
-              </button>
-              <button
-                type="button"
-                className={`horizon-chip ${showDatePicker ? 'active' : ''}`}
-                onClick={() => setShowDatePicker(true)}
-              >
-                ðŸ“† Specific Date
-              </button>
-            </div>
+          <label className="form-label">Data Date</label>
+          <div className="horizon-options">
+            <button
+              type="button"
+              className={`horizon-chip ${!showDatePicker ? 'active' : ''}`}
+              onClick={() => { setShowDatePicker(false); setAsOfDate(''); }}
+            >
+              Live / Latest
+            </button>
+            <button
+              type="button"
+              className={`horizon-chip ${showDatePicker ? 'active' : ''}`}
+              onClick={() => setShowDatePicker(true)}
+            >
+              Specific Date
+            </button>
           </div>
+          {!showDatePicker && (
+            <div className="date-hint">Fetches the most current available data</div>
+          )}
           {showDatePicker && (
             <input
               type="date"
@@ -158,28 +154,23 @@ export default function SearchScreen() {
               max={today}
               min="2010-01-01"
               onChange={e => setAsOfDate(e.target.value)}
-              style={{ marginTop: '8px' }}
+              style={{ marginTop: '4px' }}
             />
           )}
-          {!showDatePicker && (
-            <div className="date-hint">AI will fetch the most current available data</div>
-          )}
           {showDatePicker && asOfDate && (
-            <div className="date-hint">AI will search for data as of <strong>{asOfDate}</strong></div>
+            <div className="date-hint">Data as of: <strong>{asOfDate}</strong></div>
           )}
         </div>
 
         {validationError && (
-          <div className="validation-error">âš  {validationError}</div>
+          <div className="validation-error">{validationError}</div>
         )}
 
         <button type="submit" className="analyse-btn">
-          <span className="btn-icon">ðŸ”</span>
           Analyse Stock
         </button>
       </form>
 
-      {/* Footer */}
       <div className="search-footer">
         <p>Data sourced from SEC EDGAR, Yahoo Finance &amp; company filings.</p>
         <p>For educational purposes only. Not investment advice.</p>
