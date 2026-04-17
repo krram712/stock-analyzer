@@ -30,10 +30,6 @@ public class StockAnalysisService {
     // Simple in-process rate limiter: last request time per IP
     private final ConcurrentHashMap<String, Long> lastRequestTime = new ConcurrentHashMap<>();
 
-    // Manual 1-hour cache: key → cached response
-    private final ConcurrentHashMap<String, AnalysisResponse> analysisCache = new ConcurrentHashMap<>();
-    private static final long CACHE_TTL_MS = TimeUnit.HOURS.toMillis(1);
-
     @PostConstruct
     public void init() throws Exception {
         ClassPathResource resource = new ClassPathResource("system-prompt.txt");
@@ -43,41 +39,16 @@ public class StockAnalysisService {
 
     /**
      * Run a full fundamental analysis.
-     * Results are cached in-memory for 1 hour keyed by ticker+horizon+asOfDate.
-     * Returns dataSource="LIVE" for fresh results, "CACHED" for cache hits.
+     * Caching is disabled — every request always fetches fresh live data.
+     * dataSource is always "LIVE".
      */
     public AnalysisResponse analyse(String ticker, String horizon, String clientIp, String asOfDate) {
         enforceRateLimit(clientIp);
 
         String upperTicker = ticker.trim().toUpperCase();
         String normalizedDate = (asOfDate != null && !asOfDate.isBlank()) ? asOfDate.trim() : null;
-        String cacheKey = upperTicker + "_" + horizon + (normalizedDate != null ? "_" + normalizedDate : "");
 
-        // Check cache
-        AnalysisResponse cached = analysisCache.get(cacheKey);
-        if (cached != null) {
-            long ageMs = System.currentTimeMillis() - cached.getFetchedAt();
-            if (ageMs < CACHE_TTL_MS) {
-                log.info("Cache HIT for {} | age={}s", cacheKey, ageMs / 1000);
-                // Return with CACHED marker and current request timestamp
-                return AnalysisResponse.builder()
-                        .success(cached.isSuccess())
-                        .message(cached.getMessage())
-                        .data(cached.getData())
-                        .timestamp(Instant.now().toEpochMilli())
-                        .processingTimeMs(cached.getProcessingTimeMs())
-                        .ticker(cached.getTicker())
-                        .horizon(cached.getHorizon())
-                        .dataSource("CACHED")
-                        .fetchedAt(cached.getFetchedAt())
-                        .asOfDate(normalizedDate)
-                        .build();
-            } else {
-                analysisCache.remove(cacheKey);
-            }
-        }
-
-        log.info("Cache MISS for {} | horizon={} | asOfDate={} | ip={}", upperTicker, horizon, normalizedDate, clientIp);
+        log.info("Fetching LIVE data for {} | horizon={} | asOfDate={} | ip={}", upperTicker, horizon, normalizedDate, clientIp);
         long start = System.currentTimeMillis();
 
         // ── Fetch live price from Yahoo Finance ───────────────────────────────
@@ -131,7 +102,7 @@ public class StockAnalysisService {
         long fetchedAt = Instant.now().toEpochMilli();
         log.info("Analysis complete for {} in {}ms", upperTicker, elapsed);
 
-        AnalysisResponse response = AnalysisResponse.builder()
+        return AnalysisResponse.builder()
                 .success(true)
                 .message("Analysis completed successfully")
                 .data(rawJson)
@@ -143,9 +114,6 @@ public class StockAnalysisService {
                 .fetchedAt(fetchedAt)
                 .asOfDate(normalizedDate)
                 .build();
-
-        analysisCache.put(cacheKey, response);
-        return response;
     }
 
     // ─────────────────────────────────────────────────────────────────────────
