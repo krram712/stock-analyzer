@@ -23,6 +23,7 @@ public class StockAnalysisService {
 
     private final FallbackLlmClient llmClient;
     private final ObjectMapper objectMapper;
+    private final LivePriceService livePriceService;
 
     private String systemPrompt;
 
@@ -79,7 +80,10 @@ public class StockAnalysisService {
         log.info("Cache MISS for {} | horizon={} | asOfDate={} | ip={}", upperTicker, horizon, normalizedDate, clientIp);
         long start = System.currentTimeMillis();
 
-        // Inject horizon and asOfDate into the system prompt template
+        // ── Fetch live price from Yahoo Finance ───────────────────────────────
+        LivePriceService.LiveQuote liveQuote = (normalizedDate == null) ? livePriceService.fetchQuote(upperTicker) : null;
+
+        // Inject horizon into the system prompt template
         String resolvedPrompt = systemPrompt.replace("USER_HORIZON_PLACEHOLDER", horizon);
 
         // Build user message
@@ -94,11 +98,30 @@ public class StockAnalysisService {
                 "In the 'priceDate' and 'lastUpdated' fields, report today's date or the most recent trading date.";
         }
 
+        // ── Inject verified live market data so LLM can't use stale training data ──
+        String liveDataInstruction = "";
+        if (liveQuote != null) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format(
+                "IMPORTANT – VERIFIED LIVE MARKET DATA (from Yahoo Finance, fetched right now): " +
+                "current price = $%.2f, priceDate = \"%s\"",
+                liveQuote.price(), liveQuote.priceDate()));
+            if (liveQuote.marketCap() != null && !liveQuote.marketCap().equals("N/A"))
+                sb.append(String.format(", marketCap = \"%s\"", liveQuote.marketCap()));
+            if (liveQuote.high52() > 0)
+                sb.append(String.format(", 52-week high = $%.2f", liveQuote.high52()));
+            if (liveQuote.low52() > 0)
+                sb.append(String.format(", 52-week low = $%.2f", liveQuote.low52()));
+            sb.append(". You MUST use exactly these values in the JSON 'price', 'priceDate', 'marketCap', 'high52', and 'low52' fields. Do NOT substitute training-data or cached prices.");
+            liveDataInstruction = sb.toString();
+            log.info("Injecting live quote into prompt for {}: price={}", upperTicker, liveQuote.price());
+        }
+
         String userMessage = String.format(
                 "Analyse the stock with ticker symbol %s for a %s investment horizon. " +
-                "%s " +
+                "%s %s " +
                 "Return ONLY the JSON object as specified in your instructions.",
-                upperTicker, horizon, dateInstruction
+                upperTicker, horizon, dateInstruction, liveDataInstruction
         );
 
         String rawJson = llmClient.complete(resolvedPrompt, userMessage);
